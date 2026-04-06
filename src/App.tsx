@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactElement } from 'react';
 import { AlertCircle, Download, Loader2, Search, ChevronDown, ChevronUp, Plus, Trash2, CheckCircle, AlertTriangle, Info, ArrowDown } from 'lucide-react';
 
 const NAVY   = '#1a2238';
@@ -49,7 +49,7 @@ interface SevStyle {
   color: string;
   bg: string;
   border: string;
-  icon: JSX.Element | null;
+  icon: ReactElement | null;
   label: string;
 }
 
