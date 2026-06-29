@@ -357,11 +357,11 @@ export default function UIAuditTool() {
     technical:     'SEO Fundamentals, Performance Analysis, Code Quality, Security Basics, Best Practices',
   };
 
-  const buildPrompt = (url: string) => `You are an expert web auditor. Search for and analyze this page: ${url}
+  const buildPrompt = (url: string) => `You are an expert web auditor. Analyze the HTML of this page: ${url}
 
-Use the web_search tool to look up the page and gather as much detail as possible about its HTML structure, accessibility issues, SEO, and performance.
+  The full HTML markup is provided at the end of this message. Base every finding on the actual markup you are given. Do not guess or invent issues that are not in the HTML.
 
-After your research, return a single JSON object. Return the JSON IMMEDIATELY after your research — do not add any explanation, preamble, or markdown around it. Start your final response directly with the { character.
+  Return a single JSON object. Do not add any explanation, preamble, or markdown around it. Start your response directly with the { character.
 
 JSON structure required:
 {
@@ -398,10 +398,10 @@ STRICT RULES:
 - Plain language throughout (simple words, active voice, max 15 words per sentence)
 - Do not truncate — the JSON must be complete and valid`;
 
-  const callAPI = async (messages: object[]) => {
-    const resp = await fetch('/api/audit', {
+  const callAPI = async (url: string, prompt: string) => {
+    const resp = await fetch('/.netlify/functions/audit', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:16000, messages, tools:[{type:'web_search_20250305',name:'web_search'}] })
+      body: JSON.stringify({ url, prompt })
     });
     if (!resp.ok) { if (resp.status === 429) throw new Error('RATE_LIMIT'); throw new Error(`HTTP ${resp.status}`); }
     return resp.json();
@@ -409,44 +409,28 @@ STRICT RULES:
 
   const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-  const callAPIWithRetry = async (messages: object[], retries = 4): Promise<any> => {
+  const callAPIWithRetry = async (url: string, prompt: string, retries = 6): Promise<any> => {
     for (let attempt = 0; attempt <= retries; attempt++) {
-      try { return await callAPI(messages); }
+      try { return await callAPI(url, prompt); }
       catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('RATE_LIMIT') && attempt < retries) {
-          const wait = Math.pow(2, attempt + 2) * 1000;
-          setStatusMsg(`Rate limit hit — waiting ${wait/1000}s before retrying…`);
+          const wait = Math.min(15000 * Math.pow(2, attempt), 480000);
+          setStatusMsg(`Rate limit hit — waiting ${Math.round(wait/1000)}s before retry ${attempt+1} of ${retries}…`);
           await sleep(wait);
         } else throw err;
       }
     }
   };
 
-  const auditPage = async (url: string): Promise<AuditResult> => {
-    const userMsg = { role:'user', content: buildPrompt(url) };
-    let messages: object[] = [userMsg];
-    let attempts = 0;
-    const MAX_TURNS = 6;
-    while (attempts < MAX_TURNS) {
-      attempts++;
-      const data = await callAPIWithRetry(messages);
-      if (data.error) { if (data.error.type === 'exceeded_limit') throw new Error('RATE_LIMIT'); throw new Error(`API: ${data.error.message}`); }
-      const content: Array<{type:string;text?:string;id?:string;input?:unknown}> = data.content || [];
-      const fullText = content.filter(b => b.type === 'text').map(b => b.text || '').join('\n');
-      if (fullText.trim()) { try { const r = extractJSON(fullText); if (r.overallScore !== undefined && r.categories) return r; } catch { /* continue */ } }
-      if (data.stop_reason === 'end_turn') {
-        messages = [...messages, {role:'assistant',content}, {role:'user',content:'Now provide ONLY the raw JSON audit report. Start immediately with { and nothing else.'}];
-        continue;
-      }
-      if (data.stop_reason === 'tool_use') {
-        const toolResults = content.filter(b => b.type === 'tool_use').map(b => ({type:'tool_result',tool_use_id:b.id,content:`Search completed for: ${JSON.stringify(b.input)}. Now generate the complete JSON audit report.`}));
-        messages = [...messages, {role:'assistant',content}, {role:'user',content:toolResults}];
-        continue;
-      }
-      messages = [...messages, {role:'assistant',content}, {role:'user',content:'Provide the JSON audit report now. Start with { and end with }. No other text.'}];
-    }
-    throw new Error(`Could not get valid JSON after ${MAX_TURNS} attempts`);
+ const auditPage = async (url: string): Promise<AuditResult> => {
+    const data = await callAPIWithRetry(url, buildPrompt(url));
+    if (data.error) { if (data.error.type === 'exceeded_limit') throw new Error('RATE_LIMIT'); throw new Error(`API: ${data.error.message}`); }
+    const content: Array<{type:string;text?:string}> = data.content || [];
+    const fullText = content.filter(b => b.type === 'text').map(b => b.text || '').join('\n');
+    const r = extractJSON(fullText);
+    if (r.overallScore !== undefined && r.categories) return r;
+    throw new Error('Model did not return valid audit JSON');
   };
 
   const runAudit = async () => {
