@@ -398,40 +398,44 @@ STRICT RULES:
 - Plain language throughout (simple words, active voice, max 15 words per sentence)
 - Do not truncate — the JSON must be complete and valid`;
 
-  const callAPI = async (url: string, prompt: string) => {
-    const resp = await fetch('/.netlify/functions/audit', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, prompt })
-    });
-    if (!resp.ok) { if (resp.status === 429) throw new Error('RATE_LIMIT'); throw new Error(`HTTP ${resp.status}`); }
-    return resp.json();
-  };
+  const startJob = async (url: string, prompt: string): Promise<string> => {
+  const jobId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const resp = await fetch('/.netlify/functions/audit-background', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobId, url, prompt }),
+  });
+  // background functions return 202 immediately; anything else is a real failure
+  if (resp.status !== 202) throw new Error(`Failed to start audit (HTTP ${resp.status})`);
+  return jobId;
+};
+
+const pollJob = async (jobId: string): Promise<any> => {
+  const MAX_WAIT = 180000; // 3 min ceiling
+  const start = Date.now();
+  while (Date.now() - start < MAX_WAIT) {
+    await sleep(4000);
+    const resp = await fetch(`/.netlify/functions/audit-status?jobId=${jobId}`);
+    const job = await resp.json();
+    if (job.status === 'done') return job.data;
+    if (job.status === 'error') throw new Error(job.message);
+    // status 'pending' → keep polling
+  }
+  throw new Error('Audit timed out after 3 minutes');
+};
+
+const auditPage = async (url: string): Promise<AuditResult> => {
+  const jobId = await startJob(url, buildPrompt(url));
+  const data = await pollJob(jobId);
+  if (data.error) throw new Error(`API: ${data.error.message}`);
+  const content: Array<{ type: string; text?: string }> = data.content || [];
+  const fullText = content.filter(b => b.type === 'text').map(b => b.text || '').join('\n');
+  const r = extractJSON(fullText);
+  if (r.overallScore !== undefined && r.categories) return r;
+  throw new Error('Model did not return valid audit JSON');
+};
 
   const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-
-  const callAPIWithRetry = async (url: string, prompt: string, retries = 6): Promise<any> => {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try { return await callAPI(url, prompt); }
-      catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('RATE_LIMIT') && attempt < retries) {
-          const wait = Math.min(15000 * Math.pow(2, attempt), 480000);
-          setStatusMsg(`Rate limit hit — waiting ${Math.round(wait/1000)}s before retry ${attempt+1} of ${retries}…`);
-          await sleep(wait);
-        } else throw err;
-      }
-    }
-  };
-
- const auditPage = async (url: string): Promise<AuditResult> => {
-    const data = await callAPIWithRetry(url, buildPrompt(url));
-    if (data.error) { if (data.error.type === 'exceeded_limit') throw new Error('RATE_LIMIT'); throw new Error(`API: ${data.error.message}`); }
-    const content: Array<{type:string;text?:string}> = data.content || [];
-    const fullText = content.filter(b => b.type === 'text').map(b => b.text || '').join('\n');
-    const r = extractJSON(fullText);
-    if (r.overallScore !== undefined && r.categories) return r;
-    throw new Error('Model did not return valid audit JSON');
-  };
 
   const runAudit = async () => {
     const validUrls = urls.map(u => u.trim()).filter(Boolean);
