@@ -1,4 +1,4 @@
-const MAX_HTML_CHARS = 120000; // caps token cost per page
+const MAX_HTML_CHARS = 50000; // caps token cost per page
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -51,7 +51,7 @@ export default async (req) => {
       body: JSON.stringify({
         // If this string errors, grab a current one from docs.claude.com
         model: 'claude-sonnet-4-6',
-        max_tokens: 16000,
+        max_tokens: 6000,
         messages: [
           {
             role: 'user',
