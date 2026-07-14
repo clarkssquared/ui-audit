@@ -55,3 +55,33 @@ export default async (req: Request) => {
     if (jobId) await store.setJSON(jobId, { status: 'error', message: err.message || 'Audit failed' });
   }
 };
+
+// ---- helpers (hoisted, so they can live at the bottom) ----
+
+async function callClaude(prompt: string, dom: string, retryHint = '') {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY as string,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      messages: [{
+        role: 'user',
+        content: `${prompt}${retryHint}\n\n=== ACTUAL HTML OF THE PAGE BELOW ===\n${dom}`,
+      }],
+    }),
+  });
+  return anthropicRes.json();
+}
+
+function hasJson(data: any): boolean {
+  const text = (data?.content || [])
+    .filter((b: any) => b.type === 'text')
+    .map((b: any) => b.text || '')
+    .join('\n');
+  return text.includes('{') && text.includes('}');
+}
