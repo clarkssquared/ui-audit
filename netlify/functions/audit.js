@@ -50,7 +50,7 @@ export default async (req) => {
       },
       body: JSON.stringify({
         // If this string errors, grab a current one from docs.claude.com
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 16000,
         messages: [
           {
