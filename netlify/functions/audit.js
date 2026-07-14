@@ -13,19 +13,31 @@ const json = (obj, status = 200) =>
   });
 
 async function fetchDom(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (compatible; PrometAuditBot/1.0; +https://www.prometsource.com)',
-      Accept: 'text/html,application/xhtml+xml',
-    },
-    redirect: 'follow',
-  });
-  if (!res.ok) throw new Error(`Page fetch failed: HTTP ${res.status}`);
-  const html = await res.text();
-  return html.length > MAX_HTML_CHARS
-    ? html.slice(0, MAX_HTML_CHARS) + '\n<!-- TRUNCATED -->'
-    : html;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000); // 8s cap
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; PrometAuditBot/1.0; +https://www.prometsource.com)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+    });
+    if (!res.ok) throw new Error(`Page fetch failed: HTTP ${res.status}`);
+    const html = await res.text();
+    return html.length > MAX_HTML_CHARS
+      ? html.slice(0, MAX_HTML_CHARS) + '\n<!-- TRUNCATED -->'
+      : html;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Page took too long to respond (timed out after 8s)');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export default async (req) => {
