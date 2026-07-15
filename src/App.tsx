@@ -176,6 +176,15 @@ const extractJSON = (raw: string): AuditResult => {
   throw new Error('JSON repair failed');
 };
 
+const isHomepage = (url: string): boolean => {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, ''); // strip trailing slash
+    return path === '' || path === '/';
+  } catch {
+    return false;
+  }
+};
+
 interface ScoreRingProps { score: number; size?: number; id: string; }
 const ScoreRing = ({ score, size = 80, id }: ScoreRingProps) => {
   const r = 30, c = 2 * Math.PI * r;
@@ -357,7 +366,12 @@ export default function UIAuditTool() {
     technical:     'SEO Fundamentals, Performance Analysis, Code Quality, Security Basics, Best Practices',
   };
 
-  const buildPrompt = (url: string) => `You are an expert web auditor. Analyze the HTML of this page: ${url}
+  const buildPrompt = (url: string, homepage: boolean) => {
+  const scopeRule = homepage
+    ? `SCOPE: This is the site's HOMEPAGE. Audit the full page, including the header, main navigation, and footer.`
+    : `SCOPE: This is a SUBPAGE, not the homepage. The header, main navigation, and footer are shared sitewide and audited on the homepage. Do NOT report header, navigation, or footer issues. Focus the entire audit on the unique main content of this page. If you cannot clearly tell what is header/footer, use your best judgment and prioritize the main content.`;
+
+  return `You are an expert web auditor. ${scopeRule} Analyze the HTML of this page: ${url}
 
   The full HTML markup is provided at the end of this message. Base every finding on the actual markup you are given. Do not guess or invent issues that are not in the HTML.
 
@@ -396,7 +410,7 @@ STRICT RULES:
 - Start your response with { and end with }
 - Max 4 issues per category
 - Plain language throughout (simple words, active voice, max 15 words per sentence)
-- Do not truncate — the JSON must be complete and valid`;
+- Do not truncate — the JSON must be complete and valid`;};
 
   const startJob = async (url: string, prompt: string): Promise<string> => {
   const jobId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -425,7 +439,7 @@ const pollJob = async (jobId: string): Promise<any> => {
 };
 
 const auditPage = async (url: string): Promise<AuditResult> => {
-  const jobId = await startJob(url, buildPrompt(url));
+  const jobId = await startJob(url, buildPrompt(url, isHomepage(url)));
   const data = await pollJob(jobId);
   if (data.error) throw new Error(`API: ${data.error.message}`);
   const content: Array<{ type: string; text?: string }> = data.content || [];
