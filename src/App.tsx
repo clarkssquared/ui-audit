@@ -66,6 +66,17 @@ const globalStyles = `
     border-radius: 10px;
     box-shadow: 0 0 0 6px rgba(201,90,31,0.2) !important;
   }
+
+  @keyframes indeterminate {
+    0%   { background-position: 200% 0; }
+    100% { background-position: 0 0; }
+  }
+  .progress-fill-active {
+    background-image: linear-gradient(90deg, #c95a1f 25%, #e08a4f 50%, #c95a1f 75%);
+    background-size: 200% 100%;
+    animation: indeterminate 1.5s linear infinite;
+  }
+    
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
   .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
 
