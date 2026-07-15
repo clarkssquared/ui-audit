@@ -76,7 +76,7 @@ const globalStyles = `
     background-size: 200% 100%;
     animation: indeterminate 1.5s linear infinite;
   }
-    
+
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
   .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
 
@@ -638,7 +638,7 @@ const auditPage = async (url: string): Promise<AuditResult> => {
                   </legend>
                   <div className="audit-type-grid">
                     {[
-                      {val:'full',          label:'Full UI Audit',        sub:'UX + SEO + Performance'},
+                      {val:'full',          label:'Full UI Audit',        sub:'UX + A11y + SEO + Performance'},
                       {val:'accessibility', label:'Accessibility Focus',  sub:'WCAG 2.2 + SEO + Speed'},
                       {val:'migration',     label:'Migration Assessment', sub:'Content + Files + Tech'},
                       {val:'technical',     label:'Technical Audit',      sub:'SEO + Performance + Security'},
