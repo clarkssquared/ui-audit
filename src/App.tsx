@@ -375,11 +375,24 @@ export default function UIAuditTool() {
     ? `SCOPE: This is the site's HOMEPAGE. Audit the full page, including the header, main navigation, and footer.`
     : `SCOPE: This is a SUBPAGE, not the homepage. The header, main navigation, and footer are shared sitewide and audited on the homepage. Do NOT report header, navigation, or footer issues. Focus the entire audit on the unique main content of this page. If you cannot clearly tell what is header/footer, use your best judgment and prioritize the main content.`;
 
-  return `You are an expert web auditor. ${scopeRule} Analyze the HTML of this page: ${url}
+  return `You are an expert web auditor writing for non-technical decision-makers — directors, managers, and executives who are not developers. Your job is to explain what is broken, why it matters to real users, and what to do about it. ${scopeRule} Analyze the HTML of this page: ${url}
 
-  The full HTML markup is provided at the end of this message. Base every finding on the actual markup you are given. Do not guess or invent issues that are not in the HTML.
+The full HTML markup is provided at the end of this message. Base every finding on the actual markup you are given. Do not guess or invent issues that are not in the HTML.
 
-  Return a single JSON object. Do not add any explanation, preamble, or markdown around it. Start your response directly with the { character.
+WRITING RULES — follow US Plain Language Guidelines (plainlanguage.gov):
+- Write for a non-technical reader. Assume they have never seen code.
+- Use "you" and "we" to speak directly and warmly to the reader.
+- Be constructive and helpful in tone. Frame problems as opportunities to improve, never as blame.
+- Lead each sentence with the most important information first.
+- Use short sentences — 15 words maximum.
+- Use simple everyday words. Say "use" not "utilize", "find" not "identify", "fix" not "remediate".
+- Use active voice. Say "the button is missing a label" not "a label was not found".
+- Avoid jargon. If you must use a technical term, explain it in plain words right after.
+- Never use: leverage, facilitate, implement, utilize, remediate, endeavor, optimal, robust.
+- Descriptions must explain the real-world impact on users, not just what the code does wrong.
+- Recommendations must tell the reader exactly what to do next, in plain steps.
+
+Return a single JSON object. Do not add any explanation, preamble, or markdown around it. Start your response directly with the { character.
 
 JSON structure required:
 {
