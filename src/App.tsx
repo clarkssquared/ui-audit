@@ -388,7 +388,7 @@ export default function UIAuditTool() {
     ` : '';
 
   return `You are an expert web auditor writing for non-technical decision-makers — directors, managers, and executives who are not developers. Your job is to explain what is broken, why it matters to real users, and what to do about it. ${scopeRule} Analyze the HTML of this page: ${url}
-
+  ${aiGuidance}
 The full HTML markup is provided at the end of this message. Base every finding on the actual markup you are given. Do not guess or invent issues that are not in the HTML.
 
 WRITING RULES — follow US Plain Language Guidelines (plainlanguage.gov):
