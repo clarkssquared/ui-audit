@@ -13,7 +13,7 @@ interface Issue {
 }
 interface Category { name: string; score: number; issues: Issue[]; }
 interface AuditResult { overallScore: number; summary: string; categories: Category[]; }
-interface PageResult { url: string; result: AuditResult | null; error: string | null; }
+interface PageResult { url: string; result: AuditResult | null; error: string | null; lighthouse?: any; }
 interface Progress { current: number; total: number; currentUrl: string; phase: string; }
 interface SevStyle { color: string; bg: string; border: string; icon: ReactElement | null; label: string; }
 
@@ -321,6 +321,18 @@ const PageResultCard = ({ pr, index }: PageResultCardProps) => {
       <div id={rId} role="region" aria-labelledby={hId} hidden={!open}>
         <div className="result-card-body">
           <p style={{color:'#4b5563',fontSize:14,marginBottom:20,lineHeight:1.7}}>{pr.result?.summary}</p>
+          {pr.lighthouse && (
+            <div style={{background:LIGHT,borderRadius:8,padding:'12px 16px',marginBottom:20}}>
+              <p style={{fontSize:11,fontWeight:700,color:'#6b7280',textTransform:'uppercase',letterSpacing:'.06em',margin:'0 0 8px'}}>Measured by Google Lighthouse</p>
+              <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+                {([['Performance','performance'],['Accessibility','accessibility'],['SEO','seo'],['Best Practices','bestPractices']] as const).map(([label,key]) => (
+                  <span key={key} style={{fontSize:13,fontWeight:600,color:'#374151'}}>
+                    {label}: <span style={{fontWeight:800,color:scoreColor(pr.lighthouse[key])}}>{pr.lighthouse[key]}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="cat-score-grid">
             {pr.result?.categories?.map((cat: Category, i: number) => (
               <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:LIGHT,borderRadius:8,padding:'8px 12px'}}>
@@ -460,21 +472,21 @@ const pollJob = async (jobId: string): Promise<any> => {
     await sleep(4000);
     const resp = await fetch(`/.netlify/functions/audit-status?jobId=${jobId}`);
     const job = await resp.json();
-    if (job.status === 'done') return job.data;
+    if (job.status === 'done') return job;
     if (job.status === 'error') throw new Error(job.message);
     // status 'pending' → keep polling
   }
   throw new Error('Audit timed out after 3 minutes');
 };
 
-const auditPage = async (url: string): Promise<AuditResult> => {
-  const jobId = await startJob(url, buildPrompt(url, isHomepage(url)));
-  const data = await pollJob(jobId);
+const auditPage = async (url: string): Promise<{ result: AuditResult; lighthouse: any }> => {
+  const job = await startJob(url, buildPrompt(url, isHomepage(url))).then(pollJob);
+  const data = job.data;
   if (data.error) throw new Error(`API: ${data.error.message}`);
   const content: Array<{ type: string; text?: string }> = data.content || [];
   const fullText = content.filter(b => b.type === 'text').map(b => b.text || '').join('\n');
   const r = extractJSON(fullText);
-  if (r.overallScore !== undefined && r.categories) return r;
+  if (r.overallScore !== undefined && r.categories) return { result: r, lighthouse: job.lighthouse ?? null };
   throw new Error('Model did not return valid audit JSON');
 };
 
@@ -495,8 +507,8 @@ const auditPage = async (url: string): Promise<AuditResult> => {
       setProgress({current:i+1,total:validUrls.length,currentUrl:url,phase:'Searching and analyzing…'});
       setStatusMsg(`Analyzing page ${i+1} of ${validUrls.length}.`);
       try {
-        const result = await auditPage(url);
-        results.push({url,result,error:null});
+        const { result, lighthouse } = await auditPage(url);
+        results.push({url,result,error:null,lighthouse});
         setStatusMsg(`Page ${i+1} complete. Score: ${result.overallScore}/100.`);
       } catch (err) {
         const raw = err instanceof Error ? err.message : String(err);
