@@ -63,11 +63,22 @@ async function fetchLighthouse(url: string): Promise<any> {
     const json = await res.json();
     const cats = json?.lighthouseResult?.categories;
     if (!cats) return null;
+
+    // Extract failed accessibility audits (score < 1 = failed or partial)
+    const audits = json?.lighthouseResult?.audits || {};
+    const a11yRefs = cats['accessibility']?.auditRefs || [];
+    const failedA11y = a11yRefs
+      .map((ref: any) => audits[ref.id])
+      .filter((a: any) => a && a.score !== null && a.score < 1)
+      .map((a: any) => `- ${a.title} (${a.details?.items?.length ?? '?'} elements affected)`)
+      .slice(0, 10); // cap it — token discipline
+
     return {
-      performance:   Math.round((cats['performance']?.score ?? 0) * 100),
+       performance:   Math.round((cats['performance']?.score ?? 0) * 100),
       accessibility: Math.round((cats['accessibility']?.score ?? 0) * 100),
       seo:           Math.round((cats['seo']?.score ?? 0) * 100),
       bestPractices: Math.round((cats['best-practices']?.score ?? 0) * 100),
+      failedA11y,
     };
   } catch {
     return null;
@@ -89,8 +100,15 @@ export default async (req: Request) => {
     const aiSignals = auditType === 'aiReadiness' ? await fetchAiSignals(url) : '';
 
     const lighthouseBlock = lighthouse
-      ? `\n\n=== GOOGLE LIGHTHOUSE MEASURED SCORES (0-100) ===\nPerformance: ${lighthouse.performance}\nAccessibility: ${lighthouse.accessibility}\nSEO: ${lighthouse.seo}\nBest Practices: ${lighthouse.bestPractices}\nThese are real measured scores from Google's Lighthouse tool. Use them as evidence in your Performance Indicators, Accessibility, and SEO findings. Reference them explicitly where relevant.`
-      : '';
+        ? `\n\n=== GOOGLE LIGHTHOUSE MEASURED RESULTS ===
+        Scores (0-100): Performance ${lighthouse.performance} · Accessibility ${lighthouse.accessibility} · SEO ${lighthouse.seo} · Best Practices ${lighthouse.bestPractices}
+        ${lighthouse.failedA11y?.length ? `Failed automated accessibility checks:\n${lighthouse.failedA11y.join('\n')}` : 'All automated accessibility rule checks passed.'}
+
+        HOW TO USE THIS DATA:
+        - These are mechanically measured results from Google's rule-based checks. Treat them as verified facts and cite them in relevant findings (e.g. "Google's automated check found 12 images missing alt text").
+        - Your own review goes BEYOND these rules: judge alt text quality, reading order, content clarity, and issues automated rules cannot detect.
+        - IMPORTANT: In the summary, explicitly reconcile your accessibility assessment with the Lighthouse accessibility score. If Lighthouse scores high but you found real issues, explain in one plain sentence: automated checks verify code rules pass, while your review covers issues rules cannot see — and name one concrete example.`
+              : '';
 
     let data = await callClaude(prompt, dom, '', aiSignals + lighthouseBlock);
 
