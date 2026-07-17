@@ -56,7 +56,7 @@ export default async (req: Request) => {
   try {
     const body = await req.json();
     jobId = body.jobId;
-    const { url, prompt } = body;
+    const { url, prompt, auditType } = body;
 
     const dom = await fetchDom(url);
     const aiSignals = auditType === 'aiReadiness' ? await fetchAiSignals(url) : '';
@@ -69,23 +69,8 @@ export default async (req: Request) => {
         '\n\nIMPORTANT: Your entire response must be ONLY the raw JSON object. Start with { and end with }. No other text.',
         aiSignals
       );
-    };
+    }
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY as string,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
-        messages: [{ role: 'user', content: `${prompt}\n\n=== ACTUAL HTML OF THE PAGE BELOW ===\n${dom}` }],
-      }),
-    });
-
-    const data = await anthropicRes.json();
     await store.setJSON(jobId, { status: 'done', data });
   } catch (err: any) {
     if (jobId) await store.setJSON(jobId, { status: 'error', message: err.message || 'Audit failed' });
@@ -94,7 +79,7 @@ export default async (req: Request) => {
 
 // ---- helpers (hoisted, so they can live at the bottom) ----
 
-async function callClaude(prompt: string, dom: string, retryHint = '') {
+async function callClaude(prompt: string, dom: string, retryHint = '', aiSignals = '') {
   const extra = aiSignals ? `\n\n=== AI CRAWLER SIGNAL FILES ===\n${aiSignals}` : '';
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -108,7 +93,7 @@ async function callClaude(prompt: string, dom: string, retryHint = '') {
       max_tokens: 8000,
       messages: [{
         role: 'user',
-        content: `${prompt}${retryHint}\n\n=== ACTUAL HTML OF THE PAGE BELOW ===\n${dom}`,
+        content: `${prompt}${retryHint}\n\n=== ACTUAL HTML OF THE PAGE BELOW ===\n${dom}${extra}`,
       }],
     }),
   });
@@ -122,4 +107,3 @@ function hasJson(data: any): boolean {
     .join('\n');
   return text.includes('{') && text.includes('}');
 }
-

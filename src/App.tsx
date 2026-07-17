@@ -446,7 +446,7 @@ STRICT RULES:
   const resp = await fetch('/.netlify/functions/audit-background', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jobId, url, prompt }),
+    body: JSON.stringify({ jobId, url, prompt, auditType }),
   });
   // background functions return 202 immediately; anything else is a real failure
   if (resp.status !== 202) throw new Error(`Failed to start audit (HTTP ${resp.status})`);
