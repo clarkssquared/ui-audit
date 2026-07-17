@@ -25,6 +25,31 @@ async function fetchDom(url: string): Promise<string> {
   }
 }
 
+async function fetchAiSignals(pageUrl: string): Promise<string> {
+  const origin = new URL(pageUrl).origin;
+  const grab = async (path: string, label: string): Promise<string> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${origin}${path}`, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PrometAuditBot/1.0)' },
+      });
+      clearTimeout(timer);
+      if (!res.ok) return `=== ${label} ===\nNOT FOUND (HTTP ${res.status})`;
+      const text = await res.text();
+      return `=== ${label} ===\n${text.slice(0, 4000)}`;
+    } catch {
+      return `=== ${label} ===\nCOULD NOT FETCH`;
+    }
+  };
+  const [robots, llms] = await Promise.all([
+    grab('/robots.txt', 'ROBOTS.TXT'),
+    grab('/llms.txt', 'LLMS.TXT'),
+  ]);
+  return `${robots}\n\n${llms}`;
+}
+
 export default async (req: Request) => {
   const store = getStore('audits');
   let jobId = '';
@@ -34,6 +59,17 @@ export default async (req: Request) => {
     const { url, prompt } = body;
 
     const dom = await fetchDom(url);
+    const aiSignals = auditType === 'aiReadiness' ? await fetchAiSignals(url) : '';
+
+    let data = await callClaude(prompt, dom, '', aiSignals);
+
+    if (!hasJson(data)) {
+      data = await callClaude(
+        prompt, dom,
+        '\n\nIMPORTANT: Your entire response must be ONLY the raw JSON object. Start with { and end with }. No other text.',
+        aiSignals
+      );
+    };
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -59,6 +95,7 @@ export default async (req: Request) => {
 // ---- helpers (hoisted, so they can live at the bottom) ----
 
 async function callClaude(prompt: string, dom: string, retryHint = '') {
+  const extra = aiSignals ? `\n\n=== AI CRAWLER SIGNAL FILES ===\n${aiSignals}` : '';
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {

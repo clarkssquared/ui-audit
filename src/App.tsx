@@ -368,12 +368,24 @@ export default function UIAuditTool() {
     accessibility: 'Perceivable, Operable, Understandable, Robust, SEO Basics, Performance Indicators',
     migration:     'Content Inventory, File Assets, Technical Architecture, Data Structures, Integrations, SEO Basics, Performance Indicators',
     technical:     'SEO Fundamentals, Performance Analysis, Code Quality, Security Basics, Best Practices',
+     aiReadiness:   'AI Crawler Access, Content Visibility to AI, Machine-Readable Structure, AI Citation Readiness',
   };
 
   const buildPrompt = (url: string, homepage: boolean) => {
   const scopeRule = homepage
     ? `SCOPE: This is the site's HOMEPAGE. Audit the full page, including the header, main navigation, and footer.`
     : `SCOPE: This is a SUBPAGE, not the homepage. The header, main navigation, and footer are shared sitewide and audited on the homepage. Do NOT report header, navigation, or footer issues. Focus the entire audit on the unique main content of this page. If you cannot clearly tell what is header/footer, use your best judgment and prioritize the main content.`;
+
+        const aiGuidance = auditType === 'aiReadiness' ? `
+    AI READINESS AUDIT GUIDANCE:
+    This audit determines how accessible and understandable this page's content is to AI systems (ChatGPT, Claude, Perplexity, Google AI Overviews) and automated crawlers. Report findings NEUTRALLY — being AI-accessible is an opportunity for some site owners and an exposure risk for others. Never claim content "is being scraped"; only report what the site is CONFIGURED to allow.
+
+    - AI Crawler Access: The site's robots.txt content is provided after the HTML (if it exists). Check whether AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot, anthropic-ai) are explicitly allowed, explicitly blocked, or not mentioned (not mentioned = allowed by default). Also note whether an llms.txt file exists (provided after robots.txt if found).
+    - Content Visibility to AI: Assess whether meaningful content is present in this static HTML. Most AI crawlers do not execute JavaScript, so content that only appears after JavaScript runs is invisible to them. If the HTML is a thin shell with little real content, report that AI systems likely cannot see this page's content.
+    - Machine-Readable Structure: Check for schema.org / JSON-LD structured data, semantic HTML elements, proper heading hierarchy, and meta descriptions. These determine whether an AI system can understand what the page is about.
+    - AI Citation Readiness: Assess whether the content is structured in a way AI systems can accurately quote and cite: clear headings, self-contained factual statements, dates, author/source information.
+    - In each recommendation, briefly cover both directions: what to do if the site owner WANTS AI visibility, and what to do if they want to RESTRICT AI access.
+    ` : '';
 
   return `You are an expert web auditor writing for non-technical decision-makers — directors, managers, and executives who are not developers. Your job is to explain what is broken, why it matters to real users, and what to do about it. ${scopeRule} Analyze the HTML of this page: ${url}
 
@@ -648,6 +660,7 @@ const auditPage = async (url: string): Promise<AuditResult> => {
                       {val:'accessibility', label:'Accessibility Focus',  sub:'WCAG 2.2 + SEO + Speed'},
                       {val:'migration',     label:'Migration Assessment', sub:'Content + Files + Tech'},
                       {val:'technical',     label:'Technical Audit',      sub:'SEO + Performance + Security'},
+                      {val:'aiReadiness',   label:'AI Readiness',         sub:'AI visibility + Crawler access + Structure'},
                     ].map(o => {
                       const active = auditType === o.val;
                       return (
