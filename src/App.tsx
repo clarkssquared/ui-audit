@@ -466,7 +466,7 @@ STRICT RULES:
 };
 
 const pollJob = async (jobId: string): Promise<any> => {
-  const MAX_WAIT = 180000; // 3 min ceiling
+  const MAX_WAIT = 330000; // 5.5 min ceiling
   const start = Date.now();
   while (Date.now() - start < MAX_WAIT) {
     await sleep(4000);
