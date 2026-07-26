@@ -55,7 +55,7 @@ async function fetchLighthouse(url: string): Promise<any> {
     const key = process.env.PSI_API_KEY;
     if (!key) return null;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000); // give up on Lighthouse after 45s
+    const timer = setTimeout(() => controller.abort(), 90000); // give Lighthouse up to 90s
     const api = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${key}&category=performance&category=accessibility&category=seo&category=best-practices`;
     const res = await fetch(api, { signal: controller.signal });
     clearTimeout(timer);
